@@ -14,11 +14,11 @@ from datetime import datetime
 
 import yaml
 import torch
-from core.model_loader.face_recognition.FaceRecModelLoader import FaceRecModelLoader
-from core.model_handler.face_recognition.FaceRecModelHandler import FaceRecModelHandler
-from core.model_loader.face_alignment.FaceAlignModelLoader import FaceAlignModelLoader
-from core.model_handler.face_alignment.FaceAlignModelHandler import FaceAlignModelHandler
-from core.image_cropper.arcface_cropper.FaceRecImageCropper import FaceRecImageCropper
+from face_sdk.core.model_loader.face_recognition.FaceRecModelLoader import FaceRecModelLoader
+from face_sdk.core.model_handler.face_recognition.FaceRecModelHandler import FaceRecModelHandler
+from face_sdk.core.model_loader.face_alignment.FaceAlignModelLoader import FaceAlignModelLoader
+from face_sdk.core.model_handler.face_alignment.FaceAlignModelHandler import FaceAlignModelHandler
+from face_sdk.core.image_cropper.arcface_cropper.FaceRecImageCropper import FaceRecImageCropper
 
 window = tk.Tk()
 selected_video = StringVar()
@@ -30,6 +30,8 @@ subject_name = StringVar()
 operation_mode = StringVar()
 
 haar_casc_interval = IntVar()
+
+DEBUG_DIR = "debug_dir"
 
 def main():
     init_window()
@@ -197,7 +199,6 @@ def process_video(face_detector):
         counter += 1
 
         for (x, y, w, h) in faces:
-            frame = cv.rectangle(frame, (x, y), (x + w, y + h), (0, 200, 255), 4)
             face_img = frame[y:y + h, x:x + w]
 
             if operation_mode.get() == "Zbieranie zdjęć wzorcowych":
@@ -215,9 +216,10 @@ def process_video(face_detector):
                 try:
                     face_img_resized = cv.resize(face_img, (rec_cfg['input_width'], rec_cfg['input_height']))
                     feature = recHandler.inference_on_image(face_img_resized)
+                    feature = feature / np.linalg.norm(feature)
 
                     best_match = None
-                    best_score = -1
+                    best_score = 0
                     for name, feature_list in known_features.items():
                         for known in feature_list:
                             score = np.dot(feature, known)
@@ -226,9 +228,12 @@ def process_video(face_detector):
                                 best_match = name
 
                     label = f"{best_match} ({best_score * 100:.1f}%)" if best_match else "Unknown"
+                    print(label)
                     cv.putText(frame, label, (x, y - 10), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
                 except Exception as e:
                     print("Błąd rozpoznawania:", e)
+
+            frame = cv.rectangle(frame, (x, y), (x + w, y + h), (0, 200, 255), 4)
 
         cv.imshow('Odtwarzanie', frame)
 
