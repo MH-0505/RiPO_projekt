@@ -5,7 +5,11 @@
 """
 
 import logging.config
-logging.config.fileConfig("config/logging.conf")
+import os
+import logging.config
+
+config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../config/logging.conf"))
+logging.config.fileConfig(config_path)
 logger = logging.getLogger('sdk')
 
 import torch

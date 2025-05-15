@@ -140,7 +140,23 @@ def button_pressed():
     elif detection_method.get() == '1':
         messagebox.showerror("Błąd", "Metoda HOG + SVM jeszcze nie jest zaimplementowana :(")
     elif detection_method.get() == '2':
-        messagebox.showerror("Błąd", "Metoda DNN jeszcze nie jest zaimplementowana :(")
+        import subprocess
+        source = selected_source.get()
+        try:
+            if source == "Kamera":
+                subprocess.Popen([sys.executable, "face_recognition_live.py", "--source", "camera"])
+            elif source == "Plik wideo":
+                subprocess.Popen(
+                    [sys.executable, "face_recognition_live.py", "--source", "video", "--path", selected_video.get()])
+            elif source == "Kamera IP":
+                subprocess.Popen(
+                    [sys.executable, "face_recognition_live.py", "--source", "ip", "--path", camera_ip_url.get()])
+            else:
+                messagebox.showerror("Błąd", "Nieznane źródło obrazu")
+                return
+        except Exception as e:
+            messagebox.showerror("Błąd", f"Nie udało się uruchomić DNN:\n{e}")
+
 
 def process_video(face_detector):
     source = selected_source.get()
