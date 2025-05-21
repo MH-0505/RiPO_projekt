@@ -215,6 +215,7 @@ def process_video(face_detector):
             elif operation_mode.get() == "Rozpoznawanie osoby":
                 try:
                     face_img_resized = cv.resize(face_img, (rec_cfg['input_width'], rec_cfg['input_height']))
+
                     feature = recHandler.inference_on_image(face_img_resized)
                     feature = feature / np.linalg.norm(feature)
 
@@ -227,7 +228,12 @@ def process_video(face_detector):
                                 best_score = score
                                 best_match = name
 
-                    label = f"{best_match} ({best_score * 100:.1f}%)" if best_match else "Unknown"
+                    threshold = 0.5  # 50%
+                    if best_score >= threshold and best_match:
+                        label = f"{best_match} ({best_score * 100:.1f}%)"
+                    else:
+                        label = f"Nieznany ({best_score * 100:.1f}%)"
+
                     print(label)
                     cv.putText(frame, label, (x, y - 10), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
                 except Exception as e:
