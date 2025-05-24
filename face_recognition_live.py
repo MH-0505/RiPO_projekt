@@ -7,25 +7,22 @@ import torch
 import logging
 import logging.config
 
-
+from face_sdk.core.model_loader.face_detection.FaceDetModelLoader import FaceDetModelLoader
+from face_sdk.core.model_handler.face_detection.FaceDetModelHandler import FaceDetModelHandler
+from face_sdk.core.model_loader.face_alignment.FaceAlignModelLoader import FaceAlignModelLoader
+from face_sdk.core.model_handler.face_alignment.FaceAlignModelHandler import FaceAlignModelHandler
+from face_sdk.core.model_loader.face_recognition.FaceRecModelLoader import FaceRecModelLoader
+from face_sdk.core.model_handler.face_recognition.FaceRecModelHandler import FaceRecModelHandler
+from face_sdk.core.image_cropper.arcface_cropper.FaceRecImageCropper import FaceRecImageCropper
 
 from datetime import datetime
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), 'face_sdk'))
 import os
+
+sys.path.append(os.path.join(os.path.dirname(__file__), 'face_sdk'))
 config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'face_sdk/config/logging.conf'))
 
 logging.config.fileConfig(config_path)
-
-
-
-from core.model_loader.face_detection.FaceDetModelLoader import FaceDetModelLoader
-from core.model_handler.face_detection.FaceDetModelHandler import FaceDetModelHandler
-from core.model_loader.face_alignment.FaceAlignModelLoader import FaceAlignModelLoader
-from core.model_handler.face_alignment.FaceAlignModelHandler import FaceAlignModelHandler
-from core.model_loader.face_recognition.FaceRecModelLoader import FaceRecModelLoader
-from core.model_handler.face_recognition.FaceRecModelHandler import FaceRecModelHandler
-from core.image_cropper.arcface_cropper.FaceRecImageCropper import FaceRecImageCropper
 
 
 with open('face_sdk/config/model_conf.yaml') as f:
@@ -73,6 +70,7 @@ else:
     print("[BŁĄD] Nieznane źródło:", args.source)
     exit()
 
+interval = 0
 
 while cap.isOpened():
     ret, frame = cap.read()
@@ -81,6 +79,22 @@ while cap.isOpened():
 
     # Detect faces in the frame
     dets = faceDetHandler.inference_on_image(frame)
+
+    if interval == 0 and False: # roboczo tego używałem do zbierania próbek ( raczej do wywalenia )
+        for i in range(dets.shape[0]):
+            box = dets[i]
+            x1, y1, x2, y2 = box[:4].astype(int)
+
+            face_img = frame[y1:y2, x1:x2]
+            output_dir = os.path.join("face_samples", '2_dnn')
+            os.makedirs(output_dir, exist_ok=True)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+            filename = os.path.join(output_dir, f"face_{timestamp}.jpg")
+            cv2.imwrite(filename, face_img)
+    interval = interval + 1
+    interval = interval % 20
+
+
     for i in range(dets.shape[0]):
         box = dets[i]
 
@@ -98,7 +112,8 @@ while cap.isOpened():
 
         # Compare with known features
         best_match = None
-        best_score = -1
+        best_score = 0
+
         for name, features in known_features.items():
             for known in features:
                 score = np.dot(feature, known)
@@ -106,24 +121,16 @@ while cap.isOpened():
                     best_score = score
                     best_match = name
 
-        label = "Unknown"
-
         x1, y1, x2, y2 = box[:4].astype(int)
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
         label = f"{best_match} ({best_score * 100:.1f}%)" if best_match else "Unknown"
-        cv2.putText(frame, label, (x1, x2 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
         cv2.imshow("Rozpoznawanie twarzy", frame)
-        if cv2.getWindowProperty("Rozpoznawanie twarzy", cv2.WND_PROP_VISIBLE) < 1:
-            break
 
-        key = cv2.waitKey(1) & 0xFF
-        if key == 27 or key == ord('q'):
-            break
-
-cap.release()
-cv2.destroyAllWindows()
+        key = cv2.waitKey(25) & 0xFF
+        if (key == 27 and key == ord('q')) or cv2.getWindowProperty("Rozpoznawanie twarzy", cv2.WND_PROP_VISIBLE) < 1:
+            cap.release()
+            cv2.destroyAllWindows()

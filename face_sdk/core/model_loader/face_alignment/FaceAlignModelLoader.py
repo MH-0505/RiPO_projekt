@@ -18,9 +18,9 @@ logger = logging.getLogger('sdk')
 
 
 import torch
-import models.network_def.mobilev3_pfld
+import face_sdk.models.network_def.mobilev3_pfld
 
-from core.model_loader.BaseModelLoader import BaseModelLoader
+from face_sdk.core.model_loader.BaseModelLoader import BaseModelLoader
 
 from torch.nn.parallel import DataParallel
 from torch.serialization import add_safe_globals

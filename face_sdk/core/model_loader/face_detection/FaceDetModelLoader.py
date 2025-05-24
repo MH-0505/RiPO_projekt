@@ -6,14 +6,14 @@
 import logging.config
 import os
 import logging.config
+import torch
 
 config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../config/logging.conf"))
 logging.config.fileConfig(config_path)
 logger = logging.getLogger('sdk')
 
-import torch
 
-from core.model_loader.BaseModelLoader import BaseModelLoader
+from face_sdk.core.model_loader.BaseModelLoader import BaseModelLoader
 
 class FaceDetModelLoader(BaseModelLoader):
     def __init__(self, model_path, model_category, model_name, meta_file='model_meta.json'):
@@ -29,10 +29,10 @@ class FaceDetModelLoader(BaseModelLoader):
 
     def load_model(self):
         try:
-            from models.network_def.retinaface_def import RetinaFace
+            from face_sdk.models.network_def.retinaface_def import RetinaFace
             torch.serialization.add_safe_globals({'RetinaFace': RetinaFace})
 
-            model = torch.load(self.cfg['model_file_path'], map_location="cpu", weights_only=False)
+            model = torch.load(self.cfg['model_file_path'], weights_only=False)
         except Exception as e:
             logger.error('The model failed to load, please check the model path: %s!'
                          % self.cfg['model_file_path'])

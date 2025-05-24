@@ -24,6 +24,8 @@ recModel, rec_cfg = recLoader.load_model()
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 recHandler = FaceRecModelHandler(recModel, device, rec_cfg)
 
+
+
 for person_dir in os.listdir(SAMPLES_DIR):
     full_dir = os.path.join(SAMPLES_DIR, person_dir)
     if not os.path.isdir(full_dir):
@@ -33,7 +35,7 @@ for person_dir in os.listdir(SAMPLES_DIR):
     person_features = []
 
     for img_path in glob.glob(os.path.join(full_dir, "*.jpg")):
-        img = cv2.imread(img_path)
+        img = cv2.imread(img_path, cv2.IMREAD_COLOR)
         if img is None:
             continue
 

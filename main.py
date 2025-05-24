@@ -36,6 +36,7 @@ DEBUG_DIR = "debug_dir"
 def main():
     init_window()
 
+
 def init_window():
     global selected_video, window, detect_faces, selected_source, camera_ip_url
 
