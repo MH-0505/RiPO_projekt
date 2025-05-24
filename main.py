@@ -29,7 +29,7 @@ camera_ip_url = StringVar()
 subject_name = StringVar()
 operation_mode = StringVar()
 
-haar_casc_interval = IntVar()
+detection_interval = IntVar()
 
 DEBUG_DIR = "debug_dir"
 
@@ -105,15 +105,17 @@ def init_window():
     checkbox.select()
     checkbox.pack(padx=5, side=tk.LEFT)
 
+    tk.Label(top_bar, text="Interwał detekcji:").pack(padx=5, side=tk.LEFT)
+    scale1 = Scale(top_bar, variable=detection_interval, from_=1, to=30, orient=HORIZONTAL, showvalue=True)
+    scale1.pack(padx=5, side=tk.BOTTOM)
+    scale1.set(1)
+
     haar_casc_bar = tk.LabelFrame(window, bd=2, relief="groove", text="Haar Cascades")
     haar_casc_bar.pack(side=tk.TOP, fill=tk.X, pady=10, padx=10)
     radio1 = Radiobutton(haar_casc_bar, text="W użyciu", variable=detection_method, value='0')
     radio1.select()
     radio1.pack(padx=5, side=tk.LEFT)
-    tk.Label(haar_casc_bar, text="Interwał:").pack(padx=5, side=tk.LEFT)
-    scale1 = Scale(haar_casc_bar, variable=haar_casc_interval, from_=0, to=30, orient=HORIZONTAL, showvalue=True)
-    scale1.pack(padx=5, side=tk.LEFT)
-    scale1.set(10)
+
 
     hog_bar = tk.LabelFrame(window, bd=2, relief="groove", text="HOG + SVM")
     hog_bar.pack(side=tk.TOP, fill=tk.X, pady=10, padx=10)
@@ -137,7 +139,7 @@ def generate_features():
 
 def button_pressed():
     if detection_method.get() == '0':
-        process_video(HaarCascadesFD.HaarCascadesFD(interval=haar_casc_interval.get()+1))
+        process_video(HaarCascadesFD.HaarCascadesFD(interval=detection_interval.get() + 1))
     elif detection_method.get() == '1':
         messagebox.showerror("Błąd", "Metoda HOG + SVM jeszcze nie jest zaimplementowana :(")
     elif detection_method.get() == '2':
@@ -145,13 +147,22 @@ def button_pressed():
         source = selected_source.get()
         try:
             if source == "Kamera":
-                subprocess.Popen([sys.executable, "face_recognition_live.py", "--source", "camera"])
+                subprocess.Popen(
+                    [sys.executable, "face_recognition_live.py",
+                     "--source", "camera",
+                     "--det-interval", str(detection_interval.get())])
             elif source == "Plik wideo":
                 subprocess.Popen(
-                    [sys.executable, "face_recognition_live.py", "--source", "video", "--path", selected_video.get()])
+                    [sys.executable, "face_recognition_live.py",
+                     "--source", "video",
+                     "--path", selected_video.get(),
+                     "--det-interval", str(detection_interval.get())])
             elif source == "Kamera IP":
                 subprocess.Popen(
-                    [sys.executable, "face_recognition_live.py", "--source", "ip", "--path", camera_ip_url.get()])
+                    [sys.executable, "face_recognition_live.py",
+                     "--source", "ip",
+                     "--path", camera_ip_url.get(),
+                     "--det-interval", str(detection_interval.get())])
             else:
                 messagebox.showerror("Błąd", "Nieznane źródło obrazu")
                 return

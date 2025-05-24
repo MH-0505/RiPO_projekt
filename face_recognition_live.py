@@ -4,6 +4,7 @@ import os
 import glob
 import yaml
 import torch
+import argparse
 import logging
 import logging.config
 
@@ -23,7 +24,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'face_sdk'))
 config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'face_sdk/config/logging.conf'))
 
 logging.config.fileConfig(config_path)
-
 
 with open('face_sdk/config/model_conf.yaml') as f:
     model_conf = yaml.load(f, Loader=yaml.FullLoader)
@@ -55,11 +55,11 @@ for person_dir in glob.glob("face_features/*"):
         features.append(np.load(feature_file))
     known_features[person_name] = features
 
-import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--source', type=str, default='camera')  # camera, video, ip
-parser.add_argument('--path', type=str, default='')  # path to video file or ip stream
+parser.add_argument('--source', type=str, default='camera')     # camera, video, ip
+parser.add_argument('--path', type=str, default='')             # path to video file or ip stream
+parser.add_argument('--det-interval', type=int, default=1)      # detect faces every N frame
 args = parser.parse_args()
 
 if args.source == "camera":
@@ -70,67 +70,61 @@ else:
     print("[BŁĄD] Nieznane źródło:", args.source)
     exit()
 
-interval = 0
+if args.det_interval < 1:
+    args.det_interval = 1
+
+detection_data = []
+frame_count = 0
 
 while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
         break
 
-    # Detect faces in the frame
-    dets = faceDetHandler.inference_on_image(frame)
+    frame_count += 1
 
-    if interval == 0 and False: # roboczo tego używałem do zbierania próbek ( raczej do wywalenia )
+    if frame_count % args.det_interval == 0:
+        detection_data = []
+        # Detect faces in the frame
+        dets = faceDetHandler.inference_on_image(frame)
+
         for i in range(dets.shape[0]):
             box = dets[i]
+
+            # Get facial landmarks for alignment
+            landmarks = alignHandler.inference_on_image(frame, box)
+            landmark_list = []
+            for (x, y) in landmarks.astype(np.int32):
+                landmark_list.extend((x, y))
+
+            cropped = cropper.crop_image_by_mat(frame, landmark_list)
+            resized = cv2.resize(cropped, (rec_cfg['input_width'], rec_cfg['input_height']))
+
+            # Generate feature vector for the face
+            feature = recHandler.inference_on_image(resized)
+
+            best_score = 0
+            best_match = None
+            # Compare with known features
+            for name, features in known_features.items():
+                for known in features:
+                    score = np.dot(feature, known)
+                    if score > best_score:
+                        best_score = score
+                        best_match = name
             x1, y1, x2, y2 = box[:4].astype(int)
+            detection_data.append([x1, y1, x2, y2, best_score, best_match])
 
-            face_img = frame[y1:y2, x1:x2]
-            output_dir = os.path.join("face_samples", '2_dnn')
-            os.makedirs(output_dir, exist_ok=True)
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-            filename = os.path.join(output_dir, f"face_{timestamp}.jpg")
-            cv2.imwrite(filename, face_img)
-    interval = interval + 1
-    interval = interval % 20
-
-
-    for i in range(dets.shape[0]):
-        box = dets[i]
-
-        # Get facial landmarks for alignment
-        landmarks = alignHandler.inference_on_image(frame, box)
-        landmark_list = []
-        for (x, y) in landmarks.astype(np.int32):
-            landmark_list.extend((x, y))
-
-        cropped = cropper.crop_image_by_mat(frame, landmark_list)
-        resized = cv2.resize(cropped, (rec_cfg['input_width'], rec_cfg['input_height']))
-
-        # Generate feature vector for the face
-        feature = recHandler.inference_on_image(resized)
-
-        # Compare with known features
-        best_match = None
-        best_score = 0
-
-        for name, features in known_features.items():
-            for known in features:
-                score = np.dot(feature, known)
-                if score > best_score:
-                    best_score = score
-                    best_match = name
-
-        x1, y1, x2, y2 = box[:4].astype(int)
-
+    for face in detection_data:
+        x1, y1, x2, y2, best_score, best_match = face
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
         label = f"{best_match} ({best_score * 100:.1f}%)" if best_match else "Unknown"
         cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
-        cv2.imshow("Rozpoznawanie twarzy", frame)
+    cv2.imshow("Rozpoznawanie twarzy", frame)
 
-        key = cv2.waitKey(25) & 0xFF
-        if (key == 27 and key == ord('q')) or cv2.getWindowProperty("Rozpoznawanie twarzy", cv2.WND_PROP_VISIBLE) < 1:
-            cap.release()
-            cv2.destroyAllWindows()
+    key = cv2.waitKey(25) & 0xFF
+    if (key == 27 and key == ord('q')) or cv2.getWindowProperty("Rozpoznawanie twarzy", cv2.WND_PROP_VISIBLE) < 1:
+        cap.release()
+        cv2.destroyAllWindows()

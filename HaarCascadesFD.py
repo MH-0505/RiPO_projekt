@@ -12,7 +12,6 @@ class HaarCascadesFD:
 
         faces = self.face_cascade.detectMultiScale(frame_gray)
 
-
         return faces
 
 
