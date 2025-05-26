@@ -121,6 +121,7 @@ while cap.isOpened():
 
         label = f"{best_match} ({best_score * 100:.1f}%)" if best_match else "Unknown"
         cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+        print(f"{best_match} {best_score * 100:.1f}%" if best_match else "Unknown")
 
     cv2.imshow("Rozpoznawanie twarzy", frame)
 

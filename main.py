@@ -1,5 +1,12 @@
 import sys
 import os
+
+from PIL import Image as pilImage
+from PIL import ImageTk
+
+from face_sdk.core.model_handler.face_detection.FaceDetModelHandler import FaceDetModelHandler
+from face_sdk.core.model_loader.face_detection.FaceDetModelLoader import FaceDetModelLoader
+
 sys.path.append(os.path.join(os.path.dirname(__file__), 'face_sdk'))
 
 from tkinter import messagebox
@@ -22,7 +29,6 @@ from face_sdk.core.image_cropper.arcface_cropper.FaceRecImageCropper import Face
 
 window = tk.Tk()
 selected_video = StringVar()
-detect_faces = StringVar()
 detection_method = StringVar()
 selected_source = StringVar()
 camera_ip_url = StringVar()
@@ -30,6 +36,7 @@ subject_name = StringVar()
 operation_mode = StringVar()
 
 detection_interval = IntVar()
+treshold = IntVar()
 
 DEBUG_DIR = "debug_dir"
 
@@ -38,7 +45,7 @@ def main():
 
 
 def init_window():
-    global selected_video, window, detect_faces, selected_source, camera_ip_url
+    global selected_video, window, selected_source, camera_ip_url
 
     window.title('RiPO - konfigurator')
 
@@ -101,26 +108,21 @@ def init_window():
     gen_features_btn = Button(top_bar, text='Wygeneruj cechy', command=generate_features)
     gen_features_btn.pack(padx=5, side=tk.LEFT)
 
-    checkbox = Checkbutton(top_bar, text='Wykrywaj twarz', variable=detect_faces)
-    checkbox.select()
-    checkbox.pack(padx=5, side=tk.LEFT)
-
     tk.Label(top_bar, text="Interwał detekcji:").pack(padx=5, side=tk.LEFT)
     scale1 = Scale(top_bar, variable=detection_interval, from_=1, to=30, orient=HORIZONTAL, showvalue=True)
     scale1.pack(padx=5, side=tk.BOTTOM)
     scale1.set(1)
+
+    tk.Label(top_bar, text="Próg zgodności [%]:").pack(padx=5, side=tk.LEFT)
+    scale2 = Scale(top_bar, variable=treshold, from_=1, to=100, orient=HORIZONTAL, showvalue=True)
+    scale2.pack(padx=5, side=tk.BOTTOM)
+    scale2.set(50)
 
     haar_casc_bar = tk.LabelFrame(window, bd=2, relief="groove", text="Haar Cascades")
     haar_casc_bar.pack(side=tk.TOP, fill=tk.X, pady=10, padx=10)
     radio1 = Radiobutton(haar_casc_bar, text="W użyciu", variable=detection_method, value='0')
     radio1.select()
     radio1.pack(padx=5, side=tk.LEFT)
-
-
-    hog_bar = tk.LabelFrame(window, bd=2, relief="groove", text="HOG + SVM")
-    hog_bar.pack(side=tk.TOP, fill=tk.X, pady=10, padx=10)
-    radio2 = Radiobutton(hog_bar, text="W użyciu", variable=detection_method, value='1')
-    radio2.pack(padx=5, side=tk.LEFT)
 
     dnn_bar = tk.LabelFrame(window, bd=2, relief="groove", text="DNN")
     dnn_bar.pack(side=tk.TOP, fill=tk.X, pady=10, padx=10)
@@ -141,9 +143,7 @@ def generate_features():
 
 def button_pressed():
     if detection_method.get() == '0':
-        process_video(HaarCascadesFD.HaarCascadesFD(interval=detection_interval.get() + 1))
-    elif detection_method.get() == '1':
-        messagebox.showerror("Błąd", "Metoda HOG + SVM jeszcze nie jest zaimplementowana :(")
+        get_face_sample()
     elif detection_method.get() == '2':
         import subprocess
         source = selected_source.get()
@@ -171,12 +171,52 @@ def button_pressed():
         except Exception as e:
             messagebox.showerror("Błąd", f"Nie udało się uruchomić DNN:\n{e}")
 
+
 def compute_sharpness(image):
     gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
     return cv.Laplacian(gray, cv.CV_64F).var()
 
 
-def process_video(face_detector):
+def ask_user_about_face(face_image_np):
+    result = {"choice": 'none'}
+
+    # Konwertuj obraz (OpenCV -> PIL -> PhotoImage)
+    face_image_rgb = cv.cvtColor(face_image_np, cv.COLOR_BGR2RGB)
+    pil_image = pilImage.fromarray(face_image_rgb).resize((250, 250))
+    tk_image = ImageTk.PhotoImage(pil_image)
+
+    win = Toplevel()
+    win.title("Znaleziono twarz")
+
+    label = Label(win, text="Czy chcesz zapisać tę próbkę?")
+    label.pack(pady=5)
+
+    image_label = Label(win, image=tk_image)
+    image_label.image = tk_image
+    image_label.pack()
+
+    def save():
+        result["choice"] = "save"
+        win.destroy()
+
+    def skip():
+        result["choice"] = "skip"
+        win.destroy()
+
+    def cancel():
+        result["choice"] = "cancel"
+        win.destroy()
+
+    Button(win, text="Zapisz", command=save, width=20).pack(pady=5)
+    Button(win, text="Wygeneruj nową", command=skip, width=20).pack(pady=5)
+    Button(win, text="Anuluj", command=cancel, width=20).pack(pady=5)
+
+    win.grab_set()
+    win.wait_window()
+
+    return result["choice"]
+
+def get_face_sample():
     source = selected_source.get()
     if source == "Plik wideo":
         cap = cv.VideoCapture(selected_video.get())
@@ -188,147 +228,98 @@ def process_video(face_detector):
         messagebox.showerror("Błąd", "Nieznane źródło obrazu")
         return
 
-    counter = 0
-    faces = []
-
     if not cap.isOpened():
         messagebox.showerror("Błąd", "Nie można otworzyć pliku wideo")
         return
 
-    if operation_mode.get() == "Rozpoznawanie osoby":
-        with open('face_sdk/config/model_conf.yaml') as f:
-            model_conf = yaml.load(f, Loader=yaml.FullLoader)
+    if operation_mode.get() == "Zbieranie zdjęć wzorcowych":
+        name = subject_name.get().strip()
+        if not name:
+            messagebox.showerror("Błąd", "Wprowadź nazwę podmiotu przed rozpoczęciem")
+            return
+
+        # Wczytaj modele do wyrównywania
+        try:
+            with open('face_sdk/config/model_conf.yaml') as f:
+                model_conf = yaml.load(f, Loader=yaml.FullLoader)
+        except FileNotFoundError:
+            messagebox.showerror("Błąd", "Brak pliku konfiguracyjnego modelu")
+            return
 
         scene = 'non-mask'
         model_path = 'face_sdk/models'
         device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
+        faceDetLoader = FaceDetModelLoader(model_path, 'face_detection', model_conf[scene]['face_detection'])
+        faceDetModel, det_cfg = faceDetLoader.load_model()
+        faceDetHandler = FaceDetModelHandler(faceDetModel, device, det_cfg)
+
         alignLoader = FaceAlignModelLoader(model_path, 'face_alignment', model_conf[scene]['face_alignment'])
         alignModel, align_cfg = alignLoader.load_model()
         alignHandler = FaceAlignModelHandler(alignModel, device, align_cfg)
-
-        recLoader = FaceRecModelLoader(model_path, 'face_recognition', model_conf[scene]['face_recognition'])
-        recModel, rec_cfg = recLoader.load_model()
-        recHandler = FaceRecModelHandler(recModel, device, rec_cfg)
-
         cropper = FaceRecImageCropper()
 
-        known_features = {}
-        for person_dir in glob.glob("face_features/*"):
-            person_name = os.path.basename(person_dir)
-            features = []
-            for feature_file in glob.glob(os.path.join(person_dir, "*.npy")):
-                features.append(np.load(feature_file))
-            known_features[person_name] = features
+        sample_index = 1
 
-    while cap.isOpened():
-        ret, frame = cap.read()
+        while True:
+            best_face = None
+            best_sharpness = 0.0
+            count = 0
 
-        if not ret:
-            break
+            for _ in range(50):
+                count += 1
+                ret, frame = cap.read()
+                if not ret:
+                    break
 
-        if counter % face_detector.interval == 0 and detect_faces.get() == '1':
-            faces = face_detector.detect_face(frame)
+                if count % 5 != 0:
+                    continue
 
-        counter += 1
+                dets = faceDetHandler.inference_on_image(frame)
 
-        for (x, y, w, h) in faces:
-            face_img = frame[y:y + h, x:x + w]
+                for i in range(dets.shape[0]):
+                    box = dets[i]
+                    try:
+                        landmarks = alignHandler.inference_on_image(frame, box)
+                        landmark_list = landmarks.astype(np.int32).flatten().tolist()
+                        aligned = cropper.crop_image_by_mat(frame, landmark_list)
+                        sharpness = compute_sharpness(aligned)
 
-            if operation_mode.get() == "Zbieranie zdjęć wzorcowych":
-                name = subject_name.get().strip()
-                if not name:
-                    messagebox.showerror("Błąd", "Wprowadź nazwę podmiotu przed rozpoczęciem")
+                        if sharpness > best_sharpness:
+                            best_sharpness = sharpness
+                            best_face = aligned
+                    except Exception as e:
+                        print(f"[Błąd] Wyrównanie nie powiodło się: {e}")
+
+                cv.imshow('Odtwarzanie', frame)
+                if cv.waitKey(50) & 0xFF == ord('q'):
+                    cap.release()
+                    cv.destroyAllWindows()
                     return
 
-                # Wczytaj modele do wyrównywania
-                with open('face_sdk/config/model_conf.yaml') as f:
-                    model_conf = yaml.load(f, Loader=yaml.FullLoader)
+            if best_face is not None:
+                user_choice = ask_user_about_face(best_face)
 
-                scene = 'non-mask'
-                model_path = 'face_sdk/models'
-                device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-
-                alignLoader = FaceAlignModelLoader(model_path, 'face_alignment', model_conf[scene]['face_alignment'])
-                alignModel, align_cfg = alignLoader.load_model()
-                alignHandler = FaceAlignModelHandler(alignModel, device, align_cfg)
-                cropper = FaceRecImageCropper()
-
-                def compute_sharpness(image):
-                    gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
-                    return cv.Laplacian(gray, cv.CV_64F).var()
-
-                best_face = None
-                best_sharpness = 0.0
-
-                for _ in range(30):
-                    ret, frame = cap.read()
-                    if not ret:
-                        break
-                    faces = face_detector.detect_face(frame)
-
-                    for (x, y, w, h) in faces:
-                        try:
-                            box = (x, y, x + w, y + h)
-                            landmarks = alignHandler.inference_on_image(frame, box)
-                            landmark_list = []
-                            for (lx, ly) in landmarks.astype(np.int32):
-                                landmark_list.extend((lx, ly))
-
-                            aligned = cropper.crop_image_by_mat(frame, landmark_list)
-                            sharpness = compute_sharpness(aligned)
-
-                            if sharpness > best_sharpness:
-                                best_sharpness = sharpness
-                                best_face = aligned
-
-                        except Exception as e:
-                            print(f"[Błąd] Wyrównanie nie powiodło się: {e}")
-
-                    cv.imshow('Odtwarzanie', frame)
-                    if cv.waitKey(50) & 0xFF == ord('q'):
-                        break
-
-                if best_face is not None:
+                if user_choice == "save":
                     output_dir = os.path.join("face_samples_2", name)
                     os.makedirs(output_dir, exist_ok=True)
-                    filename = os.path.join(output_dir, f"face_best.jpg")
+                    filename = os.path.join(output_dir, f"face_{sample_index}.jpg")
                     cv.imwrite(filename, best_face)
-                    messagebox.showinfo("Sukces", f"Zapisano zdjęcie do {filename}")
-                else:
-                    messagebox.showerror("Błąd", "Nie udało się znaleźć dobrej twarzy")
-                return
+                    sample_index += 1
+                    messagebox.showinfo("Zapisano", f"Zapisano {filename}")
+                elif user_choice == "skip":
+                    continue
+                elif user_choice == "cancel":
+                    break
 
-            elif operation_mode.get() == "Rozpoznawanie osoby":
-                try:
-                    face_img_resized = cv.resize(face_img, (rec_cfg['input_width'], rec_cfg['input_height']))
-                    feature = recHandler.inference_on_image(face_img_resized)
-                    feature = feature / np.linalg.norm(feature)
-
-                    best_match = None
-                    best_score = 0
-                    for name, feature_list in known_features.items():
-                        for known in feature_list:
-                            score = np.dot(feature, known)
-                            if score > best_score:
-                                best_score = score
-                                best_match = name
-
-                    label = f"{best_match} ({best_score * 100:.1f}%)" if best_match else "Unknown"
-                    print(label)
-                    cv.putText(frame, label, (x, y - 10), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-                except Exception as e:
-                    print("Błąd rozpoznawania:", e)
-
-            frame = cv.rectangle(frame, (x, y), (x + w, y + h), (0, 200, 255), 4)
-
-        cv.imshow('Odtwarzanie', frame)
-
-        if cv.waitKey(25) & (0xFF == ord('q') or cv.getWindowProperty('Odtwarzanie', cv.WND_PROP_VISIBLE) < 1):
-            break
+                cv.destroyWindow("Najlepsza twarz")
+            else:
+                messagebox.showwarning("Uwaga", "Nie znaleziono dobrej twarzy — spróbuj ponownie.")
+                break
 
     cap.release()
     cv.destroyAllWindows()
+
 
 if __name__ == '__main__':
     main()
