@@ -114,6 +114,7 @@ while cap.isOpened():
                         best_match = name
             x1, y1, x2, y2 = box[:4].astype(int)
             detection_data.append([x1, y1, x2, y2, best_score, best_match])
+            print(f"{best_match} {best_score * 100:.1f}%" if best_match else "Unknown")
 
     for face in detection_data:
         x1, y1, x2, y2, best_score, best_match = face
@@ -121,7 +122,7 @@ while cap.isOpened():
 
         label = f"{best_match} ({best_score * 100:.1f}%)" if best_match else "Unknown"
         cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-        print(f"{best_match} {best_score * 100:.1f}%" if best_match else "Unknown")
+
 
     cv2.imshow("Rozpoznawanie twarzy", frame)
 

@@ -29,7 +29,6 @@ from face_sdk.core.image_cropper.arcface_cropper.FaceRecImageCropper import Face
 
 window = tk.Tk()
 selected_video = StringVar()
-detection_method = StringVar()
 selected_source = StringVar()
 camera_ip_url = StringVar()
 subject_name = StringVar()
@@ -48,88 +47,98 @@ def init_window():
     global selected_video, window, selected_source, camera_ip_url
 
     window.title('RiPO - konfigurator')
-
-    top_bar = tk.Frame(window)
-    top_bar.pack(side=tk.TOP, fill=tk.X, pady=10, padx=10)
+    window.geometry("460x500")
+    window.resizable(False, False)
 
     videos = glob.glob('test_videos/*')
-
     if not videos:
         messagebox.showerror("Błąd", "Brak nagrań w folderze test_videos")
         window.quit()
         return
-    mode_frame = tk.LabelFrame(window, bd=2, relief="groove", text="Tryb działania")
-    mode_frame.pack(side=tk.TOP, fill=tk.X, pady=10, padx=10)
 
     operation_mode.set("Zbieranie zdjęć wzorcowych")
-
-    tk.Label(mode_frame, text="Wybierz tryb:").pack(side=tk.LEFT, padx=5)
-    OptionMenu(mode_frame, operation_mode,
-               "Zbieranie zdjęć wzorcowych",
-               "Wykrywanie twarzy",
-               "Rozpoznawanie osoby").pack(side=tk.LEFT, padx=5)
     selected_source.set("Plik wideo")
     selected_video.set(videos[0])
     camera_ip_url.set("rtsp://")
 
-    tk.Label(top_bar, text="Nazwa podmiotu:").pack(padx=5, side=tk.LEFT)
-    Entry(top_bar, textvariable=subject_name, width=15).pack(side=tk.LEFT)
+    main_frame = tk.Frame(window, padx=10, pady=10)
+    main_frame.pack(fill=tk.BOTH, expand=True)
 
-    tk.Label(top_bar, text="Źródło obrazu:").pack(padx=5, side=tk.LEFT)
-    OptionMenu(top_bar, selected_source, "Plik wideo", "Kamera", "Kamera IP").pack(padx=5, side=tk.LEFT)
+    # tryb działania
+    mode_frame = tk.LabelFrame(main_frame, text="Tryb działania", padx=10, pady=5)
+    mode_frame.pack(fill=tk.X, pady=5)
+    mode_frame.grid_columnconfigure(1, weight=1)
+    mode_frame.grid_columnconfigure(0, minsize=160)
 
-    ip_frame = tk.Frame(top_bar)
-    tk.Label(ip_frame, text="Adres IP kamery:").pack(side=tk.LEFT)
-    Entry(ip_frame, textvariable=camera_ip_url, width=25).pack(side=tk.LEFT)
+    tk.Label(mode_frame, text="Wybierz tryb:").grid(row=0, column=0, sticky="w")
+    tk.OptionMenu(mode_frame, operation_mode,
+                  "Zbieranie zdjęć wzorcowych",
+                  "Identyfikacja osoby").grid(row=0, column=1, sticky="ew", padx=10)
 
-    video_frame = tk.Frame(top_bar)
-    tk.Label(video_frame, text="Wybierz wideo:").pack(side=tk.LEFT)
-    dropdown_list = OptionMenu(video_frame, selected_video, *videos)
-    dropdown_list.pack(side=tk.LEFT)
+    # Dane i źródło
+    source_frame = tk.LabelFrame(main_frame, text="Dane i źródło obrazu", padx=10, pady=5)
+    source_frame.pack(fill=tk.X, pady=5)
+    source_frame.grid_columnconfigure(1, weight=1)
+    source_frame.grid_columnconfigure(0, minsize=160)
+
+    tk.Label(source_frame, text="Nazwa podmiotu:").grid(row=0, column=0, sticky="w", pady=5)
+    tk.Entry(source_frame, textvariable=subject_name).grid(row=0, column=1, sticky="ew")
+
+    tk.Label(source_frame, text="Źródło obrazu:").grid(row=1, column=0, sticky="w")
+    tk.OptionMenu(source_frame, selected_source, "Plik wideo", "Kamera", "Kamera IP").grid(row=1, column=1, sticky="ew")
+
+    video_frame = tk.Frame(source_frame)
+
+    video_frame.grid_columnconfigure(1, weight=1)
+    video_frame.grid_columnconfigure(0, minsize=160)
+    ip_frame = tk.Frame(source_frame)
+    ip_frame.grid_columnconfigure(1, weight=1)
+    ip_frame.grid_columnconfigure(0, minsize=160)
+
+    tk.Label(video_frame, text="Wybierz wideo:").grid(row=0, column=0, sticky="w")
+    tk.OptionMenu(video_frame, selected_video, *videos).grid(row=0, column=1, sticky="ew")
+
+    tk.Label(ip_frame, text="Adres IP kamery:").grid(row=0, column=0, sticky="w")
+    tk.Entry(ip_frame, textvariable=camera_ip_url, width=30).grid(row=0, column=1, sticky="ew")
 
     def update_source_fields(*args):
         source = selected_source.get()
         if source == "Kamera IP":
-            ip_frame.pack(side=tk.LEFT, padx=5)
-            video_frame.pack_forget()
+            ip_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=5)
+            video_frame.grid_forget()
         elif source == "Plik wideo":
-            video_frame.pack(side=tk.LEFT, padx=5)
-            ip_frame.pack_forget()
+            video_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=5)
+            ip_frame.grid_forget()
         else:
-            ip_frame.pack_forget()
-            video_frame.pack_forget()
+            ip_frame.grid_forget()
+            video_frame.grid_forget()
 
     selected_source.trace_add("write", update_source_fields)
     update_source_fields()
 
-    button = Button(top_bar, text='Start', command=button_pressed)
-    button.pack(padx=20, side=tk.LEFT)
+    # Parametry
+    param_frame = tk.LabelFrame(main_frame, text="Parametry detekcji", padx=10, pady=5)
+    param_frame.pack(fill=tk.X, pady=5)
+    param_frame.grid_columnconfigure(1, weight=1)
+    param_frame.grid_columnconfigure(0, minsize=160)
 
-    gen_features_btn = Button(top_bar, text='Wygeneruj cechy', command=generate_features)
-    gen_features_btn.pack(padx=5, side=tk.LEFT)
+    tk.Label(param_frame, text="Interwał detekcji:").grid(row=0, column=0, sticky="w")
+    tk.Scale(param_frame, variable=detection_interval, from_=1, to=30, orient=tk.HORIZONTAL).grid(row=0, column=1, sticky="ew")
+    detection_interval.set(1)
 
-    tk.Label(top_bar, text="Interwał detekcji:").pack(padx=5, side=tk.LEFT)
-    scale1 = Scale(top_bar, variable=detection_interval, from_=1, to=30, orient=HORIZONTAL, showvalue=True)
-    scale1.pack(padx=5, side=tk.BOTTOM)
-    scale1.set(1)
+    tk.Label(param_frame, text="Próg zgodności [%]:").grid(row=1, column=0, sticky="w")
+    tk.Scale(param_frame, variable=treshold, from_=1, to=100, orient=tk.HORIZONTAL).grid(row=1, column=1, sticky="ew")
+    treshold.set(50)
 
-    tk.Label(top_bar, text="Próg zgodności [%]:").pack(padx=5, side=tk.LEFT)
-    scale2 = Scale(top_bar, variable=treshold, from_=1, to=100, orient=HORIZONTAL, showvalue=True)
-    scale2.pack(padx=5, side=tk.BOTTOM)
-    scale2.set(50)
+    # przyciski
+    button_frame = tk.Frame(main_frame, pady=10)
+    button_frame.pack(fill=tk.X)
 
-    haar_casc_bar = tk.LabelFrame(window, bd=2, relief="groove", text="Haar Cascades")
-    haar_casc_bar.pack(side=tk.TOP, fill=tk.X, pady=10, padx=10)
-    radio1 = Radiobutton(haar_casc_bar, text="W użyciu", variable=detection_method, value='0')
-    radio1.select()
-    radio1.pack(padx=5, side=tk.LEFT)
-
-    dnn_bar = tk.LabelFrame(window, bd=2, relief="groove", text="DNN")
-    dnn_bar.pack(side=tk.TOP, fill=tk.X, pady=10, padx=10)
-    radio3 = Radiobutton(dnn_bar, text="W użyciu", variable=detection_method, value='2')
-    radio3.pack(padx=5, side=tk.LEFT)
+    tk.Button(button_frame, text='Start', command=button_pressed, width=20).pack(side=tk.LEFT, padx=10)
+    tk.Button(button_frame, text='Wygeneruj cechy', command=generate_features, width=20).pack(side=tk.LEFT, padx=10)
 
     window.mainloop()
+
 
 def generate_features():
     import subprocess
@@ -141,10 +150,11 @@ def generate_features():
     except subprocess.CalledProcessError:
         messagebox.showerror("Błąd", "Nie udało się wygenerować cech.")
 
+
 def button_pressed():
-    if detection_method.get() == '0':
+    if operation_mode.get() == "Zbieranie zdjęć wzorcowych":
         get_face_sample()
-    elif detection_method.get() == '2':
+    elif operation_mode.get() == "Identyfikacja osoby":
         import subprocess
         source = selected_source.get()
         try:
