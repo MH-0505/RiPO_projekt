@@ -60,6 +60,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--source', type=str, default='camera')     # camera, video, ip
 parser.add_argument('--path', type=str, default='')             # path to video file or ip stream
 parser.add_argument('--det-interval', type=int, default=1)      # detect faces every N frame
+parser.add_argument('--det-threshold', type=float, default=0.5) # detection threshold
 args = parser.parse_args()
 
 if args.source == "camera":
@@ -116,13 +117,31 @@ while cap.isOpened():
             detection_data.append([x1, y1, x2, y2, best_score, best_match])
             print(f"{best_match} {best_score * 100:.1f}%" if best_match else "Unknown")
 
+    access_granted = False
+
     for face in detection_data:
         x1, y1, x2, y2, best_score, best_match = face
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        color = (0, 255, 0) if best_score * 100 > args.det_threshold else (0, 0, 255)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+
+        if best_score * 100 > args.det_threshold:
+            access_granted = True
 
         label = f"{best_match} ({best_score * 100:.1f}%)" if best_match else "Unknown"
-        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
 
+
+    text = "Access granted" if access_granted else "Access denied"
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.8
+    thickness = 2
+    color = (0, 255, 0) if access_granted else (0, 0, 255)
+
+    (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+
+    x, y = 10, 10
+    cv2.rectangle(frame, (x, y), (x + text_width + 10, y + text_height + 10), (150, 150, 150), cv2.FILLED)
+    cv2.putText(frame, text, (x + 5, y + text_height + 5), font, font_scale, color, thickness)
 
     cv2.imshow("Rozpoznawanie twarzy", frame)
 

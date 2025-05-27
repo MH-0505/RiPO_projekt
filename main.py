@@ -1,5 +1,6 @@
 import sys
 import os
+from random import randint
 
 from PIL import Image as pilImage
 from PIL import ImageTk
@@ -35,7 +36,7 @@ subject_name = StringVar()
 operation_mode = StringVar()
 
 detection_interval = IntVar()
-treshold = IntVar()
+threshold = IntVar()
 
 DEBUG_DIR = "debug_dir"
 
@@ -127,8 +128,8 @@ def init_window():
     detection_interval.set(1)
 
     tk.Label(param_frame, text="Próg zgodności [%]:").grid(row=1, column=0, sticky="w")
-    tk.Scale(param_frame, variable=treshold, from_=1, to=100, orient=tk.HORIZONTAL).grid(row=1, column=1, sticky="ew")
-    treshold.set(50)
+    tk.Scale(param_frame, variable=threshold, from_=1, to=100, orient=tk.HORIZONTAL).grid(row=1, column=1, sticky="ew")
+    threshold.set(50)
 
     # przyciski
     button_frame = tk.Frame(main_frame, pady=10)
@@ -162,19 +163,22 @@ def button_pressed():
                 subprocess.Popen(
                     [sys.executable, "face_recognition_live.py",
                      "--source", "camera",
-                     "--det-interval", str(detection_interval.get())])
+                     "--det-interval", str(detection_interval.get()),
+                     "--det-threshold", str(threshold.get())])
             elif source == "Plik wideo":
                 subprocess.Popen(
                     [sys.executable, "face_recognition_live.py",
                      "--source", "video",
                      "--path", selected_video.get(),
-                     "--det-interval", str(detection_interval.get())])
+                     "--det-interval", str(detection_interval.get()),
+                     "--det-threshold", str(threshold.get())])
             elif source == "Kamera IP":
                 subprocess.Popen(
                     [sys.executable, "face_recognition_live.py",
                      "--source", "ip",
                      "--path", camera_ip_url.get(),
-                     "--det-interval", str(detection_interval.get())])
+                     "--det-interval", str(detection_interval.get()),
+                     "--det-threshold", str(threshold.get())])
             else:
                 messagebox.showerror("Błąd", "Nieznane źródło obrazu")
                 return
@@ -282,7 +286,9 @@ def get_face_sample():
                 if not ret:
                     break
 
-                if count % 5 != 0:
+                cv.imshow('Odtwarzanie', frame)
+
+                if count % randint(1, 10) != 0:
                     continue
 
                 dets = faceDetHandler.inference_on_image(frame)
@@ -301,8 +307,7 @@ def get_face_sample():
                     except Exception as e:
                         print(f"[Błąd] Wyrównanie nie powiodło się: {e}")
 
-                cv.imshow('Odtwarzanie', frame)
-                if cv.waitKey(50) & 0xFF == ord('q'):
+                if cv.waitKey(25) & 0xFF == ord('q'):
                     cap.release()
                     cv.destroyAllWindows()
                     return
