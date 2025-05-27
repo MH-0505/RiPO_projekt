@@ -307,7 +307,7 @@ def get_face_sample():
                     except Exception as e:
                         print(f"[Błąd] Wyrównanie nie powiodło się: {e}")
 
-                if cv.waitKey(25) & 0xFF == ord('q'):
+                if (cv.waitKey(25) & 0xFF == ord('q')) or cv.getWindowProperty("Odtwarzanie", cv.WND_PROP_VISIBLE) < 1:
                     cap.release()
                     cv.destroyAllWindows()
                     return
@@ -327,7 +327,7 @@ def get_face_sample():
                 elif user_choice == "cancel":
                     break
 
-                cv.destroyWindow("Najlepsza twarz")
+                cv.destroyWindow("Odtwarzanie")
             else:
                 messagebox.showwarning("Uwaga", "Nie znaleziono dobrej twarzy — spróbuj ponownie.")
                 break
