@@ -328,6 +328,7 @@ def get_face_sample():
                     break
 
                 cv.destroyWindow("Odtwarzanie")
+                break
             else:
                 messagebox.showwarning("Uwaga", "Nie znaleziono dobrej twarzy — spróbuj ponownie.")
                 break
